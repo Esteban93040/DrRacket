@@ -1,0 +1,6 @@
+uso de lambda: Tiene que ser utilizada en todos los trabajos, mayormente en funciones pequeñas, el lambda hace como si fuera un void, no altera el uso de la función pero es una forma mas bonita.
+
+Lambda crea un parámetro cuerpo y entorno donde fue creado
+
+
+define (nombreFunción parametros parametros) (acción)) 
