@@ -3,4 +3,6 @@ uso de lambda: Tiene que ser utilizada en todos los trabajos, mayormente en func
 Lambda crea un parámetro cuerpo y entorno donde fue creado
 
 
-define (nombreFunción parametros parametros) (acción)) 
+(define (nombreFunción parametros parametros) (acción)) 
+
+Con map podemos aplicar un procedimiento a cada elemento de una lista
