@@ -1,3 +1,24 @@
+;; 
+;; This file contains various recursive functions for list processing, 
+;; tree operations, and lambda calculus utilities implemented in EOPL Scheme.
+;;
+;; Functions:
+;; - in-S? : Determines if a natural number belongs to set S (multiples of 3)
+;; - programa : Computes x raised to the power n recursively
+;; - list-length : Returns the length of a list
+;; - nth-element : Extracts the n-th element from a list (0-indexed)
+;; - report-list-too-short : Error handler for nth-element when index is out of bounds
+;; - sum-arbol : Sums all leaf values in a binary tree
+;; - cantidad-int : Counts the number of integer leaves in a binary tree
+;; - cantidad-symbol : Counts the number of symbol nodes in a binary tree
+;; - lista-symbol : Extracts all symbols from a binary tree into a list
+;; - lista-numero : Extracts all numbers from a binary tree into a list
+;; - lista-numero-predicado : Extracts numbers from a tree satisfying a given predicate
+;; - suma-lista-numeros : Sums all elements in a list of numbers
+;; - occurs-free? : Checks if a variable occurs free (unbound) in a lambda expression
+;;
+;; The file also includes test cases for tree operations and lambda calculus analysis,
+;; as well as examples of let bindings demonstrating variable scoping in Scheme.
 #lang eopl
 
 ;in-S? : N -> Bool
