@@ -153,5 +153,45 @@
 (operate (list *) '(4 5))
 ;;-----------------------------------------------------------------
 
+;; count-odd-and-even :
+;; Proposito:
+;; arbol -> List : Procedimiento que recibe un árbol binario con números en los nodos y retorna una lista (pares impares).
+;;
+;; <arbol> ::= ()
+;;          ::= (<numero> <arbol> <arbol>)
 
-;; Sebastián: 15
+(define count-odd-and-even
+  (lambda (arbol)
+    (cond
+      ((null? arbol) '(0 0))
+      (else
+       (combinar
+        (car arbol)
+        (count-odd-and-even (cadr arbol))
+        (count-odd-and-even (caddr arbol)))))))
+
+;; combinar :
+;; numero lista lista -> lista : Combina el valor del nodo con los resultados de los subárboles
+
+(define combinar
+  (lambda (valor res1 res2)
+    (let ((pares (+ (car res1) (car res2)))
+          (impares (+ (cadr res1) (cadr res2))))
+      (if (even? valor)
+          (list (+ pares 1) impares)
+          (list pares (+ impares 1))))))
+
+;;Prueba
+ (count-odd-and-even '(14 (7 () (12 () ()))
+                        (26 (20 (17 () ())
+                        ())
+                        (31 () ()))))
+
+(count-odd-and-even
+                    '(8
+                      (3
+                        (2 () ())
+                        (5 () ()))
+                      (10
+                        ()
+                        (7 () ()))))
