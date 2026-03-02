@@ -27,3 +27,35 @@
         )
     )
 )
+
+;; inversions :
+;; Proposito:
+;; L -> Int : Procedimiento que recibe una lista de números diferentes L
+;; y retorna el número de inversiones presentes en la lista.
+;;
+;; <lista> ::= ()
+;;          ::= (<numero> <lista>)
+
+(define inversions
+  (lambda (L)
+    (cond
+      ((null? L) 0)
+      (else
+       (+ (count-smaller (car L) (cdr L))
+          (inversions (cdr L)))))))
+
+;; count-smaller :
+;; Proposito:
+;; numero lista -> Int : Cuenta cuántos elementos de la lista son menores que el número dado.
+;;
+;; <lista> ::= ()
+;;          ::= (<numero> <lista>)
+
+(define count-smaller
+  (lambda (x L)
+    (cond
+      ((null? L) 0)
+      ((> x (car L))
+       (+ 1 (count-smaller x (cdr L))))
+      (else
+       (count-smaller x (cdr L))))))
