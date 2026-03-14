@@ -111,15 +111,15 @@
   (lambda (pgm)
     (cases program pgm
       (a-program (body)
-                 (eval-expression body (init-env))))))
+                (eval-expression body (init-env))))))
 
 ; Ambiente inicial
 (define init-env
   (lambda ()
     (extend-env
-     '(i v x)
-     '(1 5 10)
-     (empty-env))))
+      '(i v x)
+      '(1 5 10)
+      (empty-env))))
 
 ;eval-expression: <expression> <enviroment> -> numero
 ; evalua la expresión en el ambiente de entrada
@@ -129,7 +129,7 @@
       (lit-exp (datum) datum)
       (var-exp (id) (apply-env env id))
       (primapp-exp (prim rands)
-                   (let ((args (eval-rands rands env)))
+                  (let ((args (eval-rands rands env)))
                      (apply-primitive prim args))))))
 
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
@@ -159,8 +159,8 @@
 (define-datatype environment environment?
   (empty-env-record)
   (extended-env-record (syms (list-of symbol?))
-                       (vals (list-of scheme-value?))
-                       (env environment?)))
+                      (vals (list-of scheme-value?))
+                      (env environment?)))
 
 (define scheme-value? (lambda (v) #t))
 
@@ -184,10 +184,10 @@
       (empty-env-record ()
                         (eopl:error 'apply-env "No binding for ~s" sym))
       (extended-env-record (syms vals env)
-                           (let ((pos (list-find-position sym syms)))
-                             (if (number? pos)
-                                 (list-ref vals pos)
-                                 (apply-env env sym)))))))
+                          (let ((pos (list-find-position sym syms)))
+                            (if (number? pos)
+                                (list-ref vals pos)
+                                (apply-env env sym)))))))
 
 
 ;****************************************************************************************
@@ -232,11 +232,11 @@ x)) ")
 (define exp-app (primapp-exp (add-prim) (list exp-numero exp-ident)))
 (define programa (a-program exp-app))
 (define una-expresion-dificil (primapp-exp (mult-prim)
-                                           (list (primapp-exp (incr-prim)
+                                          (list (primapp-exp (incr-prim)
                                                               (list (var-exp 'v)
                                                                     (var-exp 'y)))
-                                                 (var-exp 'x)
-                                                 (lit-exp 200))))
+                                                (var-exp 'x)
+                                                (lit-exp 200))))
 (define un-programa-dificil
     (a-program una-expresion-dificil))
 
