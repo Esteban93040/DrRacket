@@ -2,7 +2,9 @@
 
 ;******************************************************************************************
 ; Interpretador
-; Kevin Andrés Girón Villegas
+; Kevin Andrés Girón Villegas - 2510102 -3743
+; Juan Sebastian Oviedo Oviedo - 2510104 - 3743
+; Esteban Espinoza
 
 ;******************************************************************************************
 ;Especificación Léxica
