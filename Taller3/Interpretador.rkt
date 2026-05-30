@@ -565,6 +565,8 @@
  }
 }"))
 
+; INCISO E
+
 (eval-program
  (scan&parse
 
@@ -593,6 +595,9 @@
 {
  evaluar @decorate() finEval
 }"))
+
+
+; INCISO F
 
 (eval-program
  (scan&parse
