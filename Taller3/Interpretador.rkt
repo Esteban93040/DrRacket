@@ -2,7 +2,10 @@
 
 ;******************************************************************************************
 ; Interpretador
-; Kevin Andrés Girón Villegas
+; Kevin Andrés Girón Villegas - 2510102 -3743
+; Juan Sebastian Oviedo Oviedo - 2510104 - 3743
+; Esteban Andres Espinosa - 2610114 - 3743
+; https://github.com/Esteban93040/DrRacket/tree/main/Taller3
 
 
 ;******************************************************************************************
@@ -676,6 +679,8 @@
  }
 }"))
 
+; INCISO E
+
 (eval-program
  (scan&parse
 
@@ -704,6 +709,9 @@
 {
  evaluar @decorate() finEval
 }"))
+
+
+; INCISO F
 
 (eval-program
  (scan&parse
