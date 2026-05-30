@@ -72,19 +72,27 @@
 
 ;Construidos automáticamente (se copia del archivo interpretador_simple.rkt):
 
-(sllgen:make-define-datatypes scanner-spec-interpreter grammar-interpreter)
+(sllgen:make-define-datatypes 
+scanner-spec-interpreter 
+grammar-interpreter)
 
 (define show-the-datatypes
-  (lambda () (sllgen:list-define-datatypes scanner-spec-interpreter grammar-interpreter)))
+  (lambda () (sllgen:list-define-datatypes 
+  scanner-spec-interpreter 
+  grammar-interpreter)))
 
 ;*******************************************************************************************
 ;Parser, Scanner, Interfaz (se copia del archivo interpretador_simple.rkt):
 
 (define scan&parse
-  (sllgen:make-string-parser scanner-spec-interpreter grammar-interpreter))
+  (sllgen:make-string-parser 
+  scanner-spec-interpreter 
+  grammar-interpreter))
 
 (define just-scan
-  (sllgen:make-string-scanner scanner-spec-interpreter grammar-interpreter))
+  (sllgen:make-string-scanner 
+  scanner-spec-interpreter 
+  grammar-interpreter))
 
 (define interpretador
   (sllgen:make-rep-loop "--> "
@@ -185,8 +193,9 @@
 
 (define-datatype environment environment?
   (empty-env-record)
-  (extended-env-record (syms (list-of symbol?))
-                      (vals (list-of scheme-value?))
+  (extended-env-record 
+  (syms (list-of symbol?))         
+  (vals (list-of scheme-value?))
                       (env environment?))
   (recursively-extended-env-record (proc-name symbol?)
                                    (ids (list-of symbol?))

@@ -4,6 +4,7 @@
 ; Interpretador
 ; Kevin Andrés Girón Villegas
 
+
 ;******************************************************************************************
 ;Especificación Léxica
 
@@ -74,7 +75,7 @@
               primapp-un-exp)
   
   ; condicionales
-  (expression ("Si" expression "{" expression "}" "sino"
+  (expression ("if" expression "{" expression "}" "else"
                     "{" expression "}")
               condicional-exp)
 
@@ -103,6 +104,10 @@
   (primitive-binaria ("*") primitiva-multi)
 
   (primitive-binaria ("/") primitiva-div)
+
+  (primitive-binaria ("mod") primitiva-mod)
+
+  (primitive-binaria ("div") primitiva-div-entera)
 
   (primitive-binaria ("concat") primitiva-concat)
 
@@ -306,6 +311,12 @@
       (primitiva-div ()
         (/ arg1 arg2))
 
+      (primitiva-mod ()
+        (modulo arg1 arg2))
+
+      (primitiva-div-entera ()
+        (quotient arg1 arg2))
+
       (primitiva-concat ()
          (string-append
           (if (symbol? arg1)
@@ -507,6 +518,108 @@
 
 ;; NOTA: SE TOMA DE REFERENCIA TODOS LOS ARCHIVOS DADOS PARA LA IMPLEMENTACIÓN DEL INTERPRETADOR DADOS COMO EJEMPLOS POR PARTE DEL PROFEROS
 ;; SIGUIENDO EL LIBRO
+
+;--------------------------------------------------
+; inciso a)
+; procedimiento recursivo que la suma de digitos
+; @sumarDigitos(147)=12
+
+;se declara un procedimiento recursivo que tendra el nombre de sumarDigitos y recibira un parametro n
+;si n es igual a 0 entonces el resultado es 0, sino entonces evalua el resultado de sumar el resultado de n mod 10 con el resultado de llamar nuevamente a sumarDigitos con un parametro div 10
+; luego se evalua el resultado de llamar a sumarDigitos con el parametro 147, se espera que el resultado sea 12
+(eval-program
+      (scan&parse
+   "declararRec (
+      @sumarDigitos = procedimiento(@n) {
+        if (@n == 0) { 0 }
+        else { ((@n mod 10) + evaluar @sumarDigitos( (@n div 10) ) finEval) }
+      };
+    )
+    {
+      evaluar @sumarDigitos(147) finEval
+    }")
+)
+
+;--------------------------------------------------
+; inciso b)
+; procedimiento recursivo que calcula el factorial
+; factorial(5)=120
+; factorial(10)=3628800
+
+;se declara un procedimiento recursivo que tendra el nombre de factorial y recibira un parametro n
+;si n es igual a 0 entonces el resultado es 1, sino entonces evalua el resultado de multiplicar n por el resultado de llamar nuevamente a factorial con un parametro -1
+; luego se evalua el resultado de llamar a factorial con el parametro 5 y luego con el parametro 10, se espera que el resultado sea 120 y 3628800 
+(eval-program
+      (scan&parse
+   "declararRec ( 
+      @factorial = procedimiento(@n) {
+        if (@n == 0) { 1 }
+        else { (@n * evaluar @factorial(sub1(@n)) finEval) }
+      };
+    )
+    {
+      evaluar @factorial(5) finEval
+    }")
+)
+
+(eval-program
+      (scan&parse
+   "declararRec (
+      @factorial = procedimiento(@n) {
+        if (@n == 0) { 1 }
+        else { (@n * evaluar @factorial(sub1(@n)) finEval) }
+      };
+    )
+    {
+      evaluar @factorial(10) finEval
+    }")
+)
+
+;--------------------------------------------------
+; inciso c)
+; procedimiento recursivo que calcula potencia
+; potencia(4,2)=16
+
+;se declara un procedimiento recursivo que tendra el nombre de potencia y recibira dos parametros base y exp
+;si exp es igual a 0 entonces el resultado es 1, sino entonces evalua
+; el resultado de multiplicar base por el resultado de llamar nuevamente a potencia con el mismo parametro base y un parametro exp -1
+; luego se evalua el resultado de llamar a potencia con los parametros 4 y 2, se espera que el resultado sea 16
+  (eval-program
+    (scan&parse
+     "declararRec (
+        @potencia = procedimiento(@base, @exp) {
+          if (@exp == 0) { 1 } 
+          else { (@base * evaluar @potencia(@base, sub1(@exp)) finEval) }
+        };
+      )
+      {
+        evaluar @potencia(4, 2) finEval
+      }"))
+
+;--------------------------------------------------
+; inciso d)
+; procedimiento recursivo que suma
+; numeros en un rango [a,b]
+; sumaRango(2,5)=14
+
+;se declara un procedimiento recursivo que tendra el nombre de sumaRango y recibira dos parametros a y b
+;si a es mayor que b entonces el resultado es 0, sino entonces evalua el resultado de sumar a con el resultado de llamar nuevamente a sumaRango con un parametro add1(a) y el mismo parametro b
+; luego se evalua el resultado de llamar a sumaRango con los parametros 2 y 5, se espera que el resultado sea 14
+(eval-program
+      (scan&parse
+   "declararRec (
+      @sumaRango = procedimiento(@a, @b) {
+        if (@a > @b) { 0 }
+        else { (@a + evaluar @sumaRango(add1(@a), @b) finEval) }
+      };
+    )
+    {
+      evaluar @sumaRango(2, 5) finEval
+    }")
+)
+
+
+
 ;;;;;; PRUEBAS E Y F
 
 (eval-program
