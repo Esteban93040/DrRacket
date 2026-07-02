@@ -92,6 +92,9 @@
     (declaration
       (expression)
       expr-decl)
+    (declaration
+      ("symbol" (separated-list identifier ","))
+      symbol-decl-exp)
 
     ; --- expresiones ---
     (expression (number) lit-exp)
@@ -106,6 +109,9 @@
     (expression
       (primitive "(" (separated-list expression ",") ")")
       primapp-exp)
+    (expression
+      ("(" expression primitive expression ")")
+      infix-primapp-exp)
     (expression
       ("if" expression "then" expression "else" expression)
       if-exp)
@@ -251,7 +257,8 @@
 (define-datatype target target?
   (direct-target
     (expval expval?)
-    (constante? boolean?))
+    (constante? boolean?)
+    (simbolo? boolean?))
 
   (indirect-target
     (ref ref-to-direct-target?)))
@@ -268,28 +275,53 @@
         (let loop ((all-ids   (cons id ids))
                    (all-rands (cons rand rands))
                    (cur-env   env))
-          (if (null? all-ids)
-              cur-env
-              (let ((val (eval-expression (car all-rands) cur-env)))
-                (loop (cdr all-ids)
-                      (cdr all-rands)
-                      (extended-env-record
-                        (list (car all-ids))
-                        (vector (direct-target val #f))
-                        cur-env))))))
+          (cond
+            ((null? all-ids) cur-env)
+            ((conflicts-with-symbol-binding? cur-env (car all-ids))
+             (eopl:error 'eval-declaration
+                         "El identificador ~s ya está reservado como símbolo"
+                         (car all-ids)))
+            (else
+             (let ((val (eval-expression (car all-rands) cur-env)))
+               (loop (cdr all-ids)
+                     (cdr all-rands)
+                     (extended-env-record
+                      (list (car all-ids))
+                      (vector (direct-target val #f #f))
+                      cur-env)))))))
       (const-decl-exp (id rand ids rands)
         (let loop ((all-ids   (cons id ids))
                    (all-rands (cons rand rands))
                    (cur-env   env))
-          (if (null? all-ids)
-              cur-env
-              (let ((val (eval-expression (car all-rands) cur-env)))
-                (loop (cdr all-ids)
-                      (cdr all-rands)
-                      (extended-env-record
-                        (list (car all-ids))
-                        (vector (direct-target val #t))
-                        cur-env))))))
+          (cond
+            ((null? all-ids) cur-env)
+            ((conflicts-with-symbol-binding? cur-env (car all-ids))
+             (eopl:error 'eval-declaration
+                         "El identificador ~s ya está reservado como símbolo"
+                         (car all-ids)))
+            (else
+             (let ((val (eval-expression (car all-rands) cur-env)))
+               (loop (cdr all-ids)
+                     (cdr all-rands)
+                     (extended-env-record
+                      (list (car all-ids))
+                      (vector (direct-target val #t #f))
+                      cur-env)))))))
+      (symbol-decl-exp (ids)
+        (let loop ((all-ids ids)
+                   (cur-env env))
+          (cond
+            ((null? all-ids) cur-env)
+            ((conflicts-with-non-symbol-binding? cur-env (car all-ids))
+             (eopl:error 'eval-declaration
+                         "El identificador ~s ya está reservado como variable"
+                         (car all-ids)))
+            (else
+             (loop (cdr all-ids)
+                   (extended-env-record
+                    (list (car all-ids))
+                    (vector (direct-target (car all-ids) #t #t))
+                    cur-env))))))
       (expr-decl (exp)
         (cases expression exp
           (func-exp (nombre ids exps return-exp)
@@ -298,11 +330,22 @@
               (vector-set! vec 0
                 (direct-target
                   (closure-with-body nombre ids exps return-exp nuevo-env)
+                  #f
                   #f))
               nuevo-env))
           (else
           (eval-expression exp env))))
     )))
+
+(define conflicts-with-symbol-binding?
+  (lambda (env id)
+    (let ((kind (binding-kind env id)))
+      (and kind (eq? kind 'symbol)))))
+
+(define conflicts-with-non-symbol-binding?
+  (lambda (env id)
+    (let ((kind (binding-kind env id)))
+      (and kind (not (eq? kind 'symbol))))))
 
 (define decl-env?
   (lambda (resultado decl)
@@ -339,6 +382,10 @@
       (primapp-exp (prim rands)
                    (let ((args (eval-primapp-exp-rands rands env)))
                      (apply-primitive prim args)))
+      (infix-primapp-exp (exp1 prim exp2)
+        (apply-primitive prim
+                         (list (eval-expression exp1 env)
+                               (eval-expression exp2 env))))
       (if-exp (test-exp true-exp false-exp)
               (if (true-value? (eval-expression test-exp env))
                   (eval-expression true-exp env)
@@ -394,7 +441,7 @@
                   (lambda (elemento)
                     (let ((cur-env (extended-env-record
                                       (list id)
-                                      (vector (direct-target elemento #f))
+                                      (vector (direct-target elemento #f #f))
                                       env)))
                       (eval-expression primera-exp cur-env)
                       (for-each (lambda (ex) (eval-expression ex cur-env)) resto-exps)))
@@ -440,17 +487,19 @@
             (indirect-target
              (let ((ref (apply-env-ref env id)))
                (cases target (primitive-deref ref)
-                 (direct-target (expval constante?)
+                 (direct-target (expval constante? simbolo?)
                    ref)
                  (indirect-target (ref1)
                    ref1))))
             (direct-target
              (eval-expression rand env)
+             #f
              #f)))
 
       (else
        (direct-target
         (eval-expression rand env)
+        #f
         #f)))))
 
 (define eval-primapp-exp-rands
@@ -466,6 +515,7 @@
   (lambda (rand env)
     (direct-target
       (eval-expression rand env)
+      #f
       #f)))
 
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
@@ -473,24 +523,24 @@
   (lambda (prim args)
     (cases primitive prim
       ; aritméticas existentes
-      (add-prim ()        (+ (car args) (cadr args)))
-      (substract-prim ()  (- (car args) (cadr args)))
-      (mult-prim ()       (* (car args) (cadr args)))
-      (incr-prim ()       (+ (car args) 1))
-      (decr-prim ()       (- (car args) 1))
+      (add-prim ()        (symbolic-bin-op '+ + (car args) (cadr args)))
+      (substract-prim ()  (symbolic-bin-op '- - (car args) (cadr args)))
+      (mult-prim ()       (symbolic-bin-op '* * (car args) (cadr args)))
+      (incr-prim ()       (symbolic-un-op (string->symbol "add1") (lambda (x) (+ x 1)) (car args)))
+      (decr-prim ()       (symbolic-un-op (string->symbol "sub1") (lambda (x) (- x 1)) (car args)))
       ; relacionales
-      (menor-prim ()        (if (< (car args) (cadr args)) #t #f))
-      (mayor-prim ()        (if (> (car args) (cadr args)) #t #f))
-      (menor-igual-prim ()  (if (<= (car args) (cadr args)) #t #f))
-      (mayor-igual-prim ()  (if (>= (car args) (cadr args)) #t #f))
-      (igual-prim ()        (if (equal? (car args) (cadr args)) #t #f))
-      (diferente-prim ()    (if (not (equal? (car args) (cadr args))) #t #f))
+      (menor-prim ()        (apply-primitive-relacion '< < (car args) (cadr args)))
+      (mayor-prim ()        (apply-primitive-relacion '> > (car args) (cadr args)))
+      (menor-igual-prim ()  (apply-primitive-relacion '<= <= (car args) (cadr args)))
+      (mayor-igual-prim ()  (apply-primitive-relacion '>= >= (car args) (cadr args)))
+      (igual-prim ()        (apply-primitive-relacion '== equal? (car args) (cadr args)))
+      (diferente-prim ()    (apply-primitive-relacion '<> (lambda (a b) (not (equal? a b))) (car args) (cadr args)))
       ; booleanos
       (and-prim () (and (true-value? (car args)) (true-value? (cadr args))))
       (or-prim ()  (or  (true-value? (car args)) (true-value? (cadr args))))
       (not-prim () (not (true-value? (car args))))
-      (modulo-prim ()      (modulo (car args) (cadr args)))
-      (division-prim ()    (/ (car args) (cadr args)))
+      (modulo-prim ()      (symbolic-bin-op 'mod modulo (car args) (cadr args)))
+      (division-prim ()    (symbolic-bin-op '/ / (car args) (cadr args)))
       (longitud-prim ()    (string-length (car args)))
       (concatenar-prim ()  (string-append (car args) (cadr args)))
       ; --- Primitivas de Listas ---
@@ -528,6 +578,67 @@
       (valores-prim ()
         (vector (hash-values (car args))))
     )))
+
+(define symbolic-operator?
+  (lambda (op)
+    (memq op (list '+ '- '* '/ 'mod (string->symbol "add1") (string->symbol "sub1")))))
+
+(define symbolic-expression?
+  (lambda (v)
+    (or (symbol? v)
+     (and (list? v)
+       (or (and (= (length v) 2)
+          (symbolic-operator? (car v)))
+        (and (= (length v) 3)
+          (symbolic-operator? (cadr v))))))))
+
+(define symbolic-value?
+  (lambda (v)
+    (symbolic-expression? v)))
+
+(define normalize-symbolic-value
+  (lambda (v)
+    (cond
+      ((symbolic-value? v) v)
+      ((number? v) v)
+      (else
+       (eopl:error 'normalize-symbolic-value
+                   "Se esperaba un número o una expresión simbólica, se obtuvo: ~s"
+                   v)))))
+
+(define symbolic-bin-op
+  (lambda (op numeric-op lhs rhs)
+    (cond
+      ((and (number? lhs) (number? rhs))
+       (numeric-op lhs rhs))
+      ((or (symbolic-value? lhs) (symbolic-value? rhs))
+       (list (normalize-symbolic-value lhs)
+             op
+             (normalize-symbolic-value rhs)))
+      (else
+       (eopl:error 'symbolic-bin-op
+                   "Operación aritmética no soportada con valores: ~s y ~s"
+                   lhs rhs)))))
+
+(define symbolic-un-op
+  (lambda (op numeric-op value)
+    (cond
+      ((number? value)
+       (numeric-op value))
+      ((symbolic-value? value)
+       (list op (normalize-symbolic-value value)))
+      (else
+       (eopl:error 'symbolic-un-op
+                   "Operación aritmética no soportada con valor: ~s"
+                   value)))))
+
+(define apply-primitive-relacion
+  (lambda (op pred lhs rhs)
+    (if (and (number? lhs) (number? rhs))
+        (pred lhs rhs)
+        (eopl:error 'apply-primitive-relacion
+                    "La primitiva relacional ~s requiere operandos numéricos: ~s y ~s"
+                    op lhs rhs))))
 
 ;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
 (define true-value?
@@ -610,7 +721,7 @@
         (lambda (valor)
           (if (target? valor)
               valor                      ; ya es un target, no envolver
-              (direct-target valor #f))) ; valor simple, envolver
+              (direct-target valor #f #f))) ; valor simple, envolver
         vals))
       env)))
 
@@ -625,7 +736,7 @@
       (list->vector
        (map
         (lambda (valor)
-          (direct-target valor #t))
+          (direct-target valor #t #f))
         vals))
       env)))
 
@@ -643,6 +754,7 @@
               pos
               (direct-target
                (closure ids body env)
+               #f
                #f)))
            (iota len)
            idss
@@ -665,6 +777,29 @@
       ;(display "jajajaj ")
       (deref (apply-env-ref env sym))))
     ;)
+
+(define binding-kind
+  (lambda (env sym)
+    (let loop ((cur-env env))
+      (cases environment cur-env
+        (empty-env-record () #f)
+        (extended-env-record (syms vals rest-env)
+          (let ((pos (rib-find-position sym syms)))
+            (if (number? pos)
+                (target-kind (primitive-deref (a-ref pos vals)))
+                (loop rest-env))))))))
+
+(define target-kind
+  (lambda (tgt)
+    (cases target tgt
+      (direct-target (valor constante? simbolo?)
+        (cond
+          (simbolo? 'symbol)
+          (constante? 'const)
+          (else 'var)))
+      (indirect-target (ref1)
+        (target-kind (primitive-deref ref1))))))
+
 (define apply-env-ref
   (lambda (env sym)
     (cases environment env
@@ -682,6 +817,7 @@
 (define expval?
   (lambda (x)
     (or (number? x)
+        (symbol? x)
         (boolean? x)
         (string? x)
         (procval? x)
@@ -698,20 +834,20 @@
          (cases reference x
            (a-ref (pos vec)
              (cases target (vector-ref vec pos)
-               (direct-target (v constante?) #t)
+               (direct-target (v constante? simbolo?) #t)
                (indirect-target (v) #f)))))))
 
 (define deref
   (lambda (ref)
     (cases target (primitive-deref ref)
 
-      (direct-target (expval constante?)
+      (direct-target (expval constante? simbolo?)
         expval)
 
       (indirect-target (ref1)
         (cases target (primitive-deref ref1)
 
-          (direct-target (expval constante?)
+          (direct-target (expval constante? simbolo?)
             expval)
 
           (indirect-target (p)
@@ -731,9 +867,9 @@
 
     (cases target (primitive-deref ref)
 
-      (direct-target (valor constante?)
+      (direct-target (valor constante? simbolo?)
 
-        (if constante?
+        (if (or constante? simbolo?)
 
             (eopl:error
              'setref!
@@ -741,7 +877,7 @@
 
             (primitive-setref!
              ref
-             (direct-target expval #f))))
+             (direct-target expval #f #f))))
 
       (indirect-target (ref1)
 
@@ -831,3 +967,5 @@ end")
     (a-program (expr-decl una-expresion-dificil) '()))
 
 ; (interpretador)
+
+(provide (all-defined-out))
