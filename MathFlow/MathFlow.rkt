@@ -243,10 +243,7 @@
 
 (define init-env
   (lambda ()
-    (extend-env
-     '(x y z)
-     (list 1 5 10)   ; ← valores simples, sin direct-target
-     (empty-env))))
+    (empty-env)))
 
 ;eval-expression: <expression> <enviroment> -> numero
 ; evalua la expresión en el ambiente de entrada

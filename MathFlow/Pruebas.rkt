@@ -196,6 +196,20 @@ end"))
 
 (eval-program (scan&parse "diccionario?(crear-diccionario())"))   ; #t
 
+;--- Expresiones simbólicas ---
+; Este caso demuestra que MathFlow conserva expresiones cuando aparece un símbolo.
+(eval-program
+ (scan&parse "symbol x, y; 
+              var expr1 = +(x, 2); 
+              var expr2 = -(y, 5); 
+              var expr3 = *(expr1, expr2); 
+              var expr4 = *(+(x, 3), -(x, 2)); 
+              print(expr3); 
+              print(expr4)"))
+; Resultado esperado:
+; ((x + 2) * (y - 5))
+; ((x + 3) * (x - 2))
+
 ;--- Listas literales y diccionarios literales (sintaxis [ ] y { }) ---
 (eval-program (scan&parse "[1, 2, 3]"))
 ; vector con (1 2 3)
