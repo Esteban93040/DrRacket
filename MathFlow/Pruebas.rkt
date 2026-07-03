@@ -255,3 +255,59 @@ end"))
 
 (eval-program (scan&parse "symbol x; simplificar(((x * 5) * 6))"))
 ; (x * 30)
+
+;--- evaluar ---
+(eval-program (scan&parse "symbol x; var expr = +(x, 3); evaluar(expr, x=5)"))
+; 8
+
+(eval-program (scan&parse "symbol x; symbol y; var expr = +( *(x, y), 2); evaluar(expr, x=3, y=4)"))
+; 14
+
+(eval-program (scan&parse "symbol x; symbol y; var expr = +( *(x, y), 2); evaluar(expr, x=3)"))
+; ((3 * y) + 2)
+
+(eval-program (scan&parse "symbol x; var expr = +( *(x, 0), y); evaluar(expr, x=5)"))
+; y
+
+;--- listas con vacio y crear-lista(elem, lst) ---
+(eval-program (scan&parse "begin
+  var lista = vacio;
+  print(vacio?(lista));
+  print(vacio?(crear-lista(1, vacio)));
+  print(lista?(crear-lista(5, vacio)));
+  null
+end"))
+; #t
+; #f
+; #t
+ (eval-program (scan&parse "begin                                                                                              
+                              var lista = vacio;                                                                                                        
+                              print(vacio?(lista));                                                                                                     
+                              print(vacio?(crear-lista(1, vacio)));                                                                                     
+                              print(lista?(crear-lista(5, vacio)));                                                                                     
+                              null                                                                                                                      
+                          end"))
+
+(eval-program (scan&parse "begin
+  var lista = vacio;
+  set lista = crear-lista(3, lista);
+  set lista = crear-lista(2, lista);
+  set lista = crear-lista(1, lista);
+  print(lista);
+  null
+end"))
+; (1 2 3)
+
+(eval-program (scan&parse "begin
+  var lista = crear-lista(1, crear-lista(2, crear-lista(3, vacio)));
+  print(cabeza(lista));
+  print(cola(lista));
+  print(ref-list(lista, 1));
+  set lista = set-list(lista, 1, 99);
+  print(lista);
+  null
+end"))
+; 1
+; (2 3)
+; 2
+; (1 99 3)

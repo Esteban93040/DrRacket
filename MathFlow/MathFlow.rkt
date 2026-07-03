@@ -103,12 +103,10 @@
     (expression ("true") true-exp)
     (expression ("false") false-exp)
     (expression ("null") null-exp)
+    (expression ("vacio") vacio-exp)
     (expression
       ("print" "(" expression ")")
       print-exp)
-    (expression
-      ("simplificar" "(" expression ")")
-      simplify-exp)
     (expression
       (primitive "(" (separated-list expression ",") ")")
       primapp-exp)
@@ -173,7 +171,6 @@
     (primitive ("longitud")   longitud-prim)
     (primitive ("concatenar") concatenar-prim)
     (primitive ("vacio?") vacio-pred-prim)
-    (primitive ("vacio")  vacio-prim)
     (primitive ("crear-lista") crear-lista-prim)
     (primitive ("lista?") lista-pred-prim)
     (primitive ("cabeza") cabeza-prim)
@@ -368,6 +365,8 @@
         #f)
       (null-exp ()
         'null)
+      (vacio-exp ()
+        (make-list-value '()))
       (var-or-app-exp (id args-lists)
         (if (null? args-lists)
             (apply-env env id)
@@ -382,8 +381,6 @@
       (primapp-exp (prim rands)
                    (let ((args (eval-primapp-exp-rands rands env)))
                      (apply-primitive prim args)))
-      (simplify-exp (exp1)
-        (simplify-expression (eval-expression exp1 env)))
       (infix-primapp-exp (exp1 prim exp2)
         (apply-primitive prim
                          (list (eval-expression exp1 env)
@@ -447,8 +444,8 @@
                     'null)))))
       (for-exp (id lista-exp primera-exp resto-exps)
         (let ((lista-val (eval-expression lista-exp env)))
-          (if (and (vector? lista-val) (list? (vector-ref lista-val 0)))
-              (let ((lista-real (vector-ref lista-val 0)))
+          (if (list-value? lista-val)
+              (let ((lista-real (list-value-content lista-val)))
                 (for-each
                   (lambda (elemento)
                     (let ((cur-env (extended-env-record
@@ -471,8 +468,10 @@
                       (eval-expression (car cuerpos) env)
                       (iterar-casos (cdr casos) (cdr cuerpos))))))))
       (list-exp (exps)
-        (let ((valores-evaluados (map (lambda (e) (eval-expression e env)) exps)))
-          (vector valores-evaluados)))  
+        (make-list-value
+          (map (lambda (e)
+                 (eval-expression e env))
+               exps)))  
       (dict-exp (id1 exp1 ids exps)
         (let ((h (make-hash))
               (claves (map symbol->string (cons id1 ids)))
@@ -530,6 +529,39 @@
       #f
       #f)))
 
+(define make-list-value
+  (lambda (lst)
+    (vector lst)))
+
+(define list-value?
+  (lambda (value)
+    (and (vector? value)
+         (= (vector-length value) 1)
+         (list? (vector-ref value 0)))))
+
+(define list-value-content
+  (lambda (value)
+    (if (list-value? value)
+        (vector-ref value 0)
+        (eopl:error 'list-value-content
+                    "Se esperaba una lista de MathFlow, pero se obtuvo: ~s"
+                    value))))
+
+(define build-list-value
+  (lambda (args)
+    (cond
+      ((null? args)
+       (make-list-value '()))
+
+      ((and (= (length args) 2)
+            (list-value? (cadr args)))
+       (make-list-value
+         (cons (car args)
+               (list-value-content (cadr args)))))
+
+      (else
+       (make-list-value args)))))
+
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
 (define apply-primitive
   (lambda (prim args)
@@ -571,17 +603,20 @@
       (longitud-prim ()    (string-length (car args)))
       (concatenar-prim ()  (string-append (car args) (cadr args)))
       ; --- Primitivas de Listas ---
-      (vacio-pred-prim () (null? (vector-ref (car args) 0)))
-      (vacio-prim ()      (vector '()))
-      (crear-lista-prim () (vector args))
-      (lista-pred-prim () (and (vector? (car args)) (list? (vector-ref (car args) 0))))
-      (cabeza-prim ()     (car (vector-ref (car args) 0)))
-      (cola-prim ()       (vector (cdr (vector-ref (car args) 0))))
-      (append-prim ()     (vector (append (vector-ref (car args) 0) (vector-ref (cadr args) 0))))
-      (ref-list-prim ()   (list-ref (vector-ref (car args) 0) (cadr args)))
+      (vacio-pred-prim () (null? (list-value-content (car args))))
+      (crear-lista-prim () (build-list-value args))
+      (lista-pred-prim () (list-value? (car args)))
+      (cabeza-prim ()     (car (list-value-content (car args))))
+      (cola-prim ()       (make-list-value (cdr (list-value-content (car args)))))
+      (append-prim ()
+        (make-list-value
+          (append
+            (list-value-content (car args))
+            (list-value-content (cadr args)))))
+      (ref-list-prim ()   (list-ref (list-value-content (car args)) (cadr args)))
       (set-list-prim ()   
         (let* ((vec (car args))
-               (lst (vector-ref vec 0))
+               (lst (list-value-content vec))
                (idx (cadr args))
                (val (caddr args)))
           (vector-set! vec 0 (reemplazar-en-lista lst idx val))
@@ -601,9 +636,11 @@
           (hash-set! h k v)
           v))
       (claves-prim ()
-        (vector (hash-keys (car args)))) 
+        (make-list-value
+          (hash-keys (car args)))) 
       (valores-prim ()
-        (vector (hash-values (car args))))
+        (make-list-value
+          (hash-values (car args))))
     )))
 
 (define symbolic-operator?
@@ -672,90 +709,6 @@
        (eopl:error 'apply-primitive-relacion
                    "La primitiva relacional ~s requiere operandos numéricos: ~s y ~s"
                    op lhs rhs)))))
-
-(define simplify-expression
-  (lambda (value)
-    (cond
-      ((number? value) value)
-      ((symbol? value) value)
-      ((and (list? value) (= (length value) 2) (symbolic-operator? (car value)))
-       (simplify-unary-expression (car value)
-                                  (simplify-expression (cadr value))))
-      ((and (list? value) (= (length value) 3) (symbolic-operator? (cadr value)))
-       (simplify-binary-expression (cadr value)
-                                   (simplify-expression (car value))
-                                   (simplify-expression (caddr value))))
-      (else
-       (eopl:error 'simplify-expression
-                   "simplificar requiere una expresión simbólica, se obtuvo: ~s"
-                   value)))))
-
-(define simplify-unary-expression
-  (lambda (op value)
-    (cond
-      ((number? value)
-       (cond
-         ((eq? op (string->symbol "add1")) (+ value 1))
-         ((eq? op (string->symbol "sub1")) (- value 1))
-         (else (list op value))))
-      (else
-       (list op value)))))
-
-(define simplify-binary-expression
-  (lambda (op lhs rhs)
-    (cond
-      ((eq? op '+) (simplify-addition lhs rhs))
-      ((eq? op '-) (simplify-subtraction lhs rhs))
-      ((eq? op '*) (simplify-multiplication lhs rhs))
-      ((eq? op '/) (simplify-division lhs rhs))
-      (else (list lhs op rhs)))))
-
-(define infix-form?
-  (lambda (value op)
-    (and (list? value)
-         (= (length value) 3)
-         (eq? (cadr value) op))))
-
-(define simplify-addition
-  (lambda (lhs rhs)
-    (cond
-      ((and (number? lhs) (zero? lhs)) rhs)
-      ((and (number? rhs) (zero? rhs)) lhs)
-      ((and (number? lhs) (number? rhs)) (+ lhs rhs))
-      ((and (infix-form? lhs '+) (number? (caddr lhs)) (number? rhs))
-       (simplify-expression (list (car lhs) '+ (+ (caddr lhs) rhs))))
-      ((and (number? lhs) (infix-form? rhs '+) (number? (caddr rhs)))
-       (simplify-expression (list (+ lhs (caddr rhs)) '+ (car rhs))))
-      (else (list lhs '+ rhs)))))
-
-(define simplify-subtraction
-  (lambda (lhs rhs)
-    (cond
-      ((and (number? rhs) (zero? rhs)) lhs)
-      ((and (number? lhs) (number? rhs)) (- lhs rhs))
-      (else (list lhs '- rhs)))))
-
-(define simplify-multiplication
-  (lambda (lhs rhs)
-    (cond
-      ((and (number? lhs) (zero? lhs)) 0)
-      ((and (number? rhs) (zero? rhs)) 0)
-      ((and (number? lhs) (= lhs 1)) rhs)
-      ((and (number? rhs) (= rhs 1)) lhs)
-      ((and (number? lhs) (number? rhs)) (* lhs rhs))
-      ((and (infix-form? lhs '*) (number? (caddr lhs)) (number? rhs))
-       (simplify-expression (list (car lhs) '* (* (caddr lhs) rhs))))
-      ((and (number? lhs) (infix-form? rhs '*) (number? (caddr rhs)))
-       (simplify-expression (list (* lhs (caddr rhs)) '* (car rhs))))
-      (else (list lhs '* rhs)))))
-
-(define simplify-division
-  (lambda (lhs rhs)
-    (cond
-      ((and (number? lhs) (zero? lhs)) 0)
-      ((and (number? rhs) (= rhs 1)) lhs)
-      ((and (number? lhs) (number? rhs)) (/ lhs rhs))
-      (else (list lhs '/ rhs)))))
 
 (define contains-symbolic-value?
   (lambda (values)
