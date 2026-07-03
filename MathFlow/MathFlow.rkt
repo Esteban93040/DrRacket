@@ -384,9 +384,14 @@
                          (list (eval-expression exp1 env)
                                (eval-expression exp2 env))))
       (if-exp (test-exp true-exp false-exp)
-              (if (true-value? (eval-expression test-exp env))
-                  (eval-expression true-exp env)
-                  (eval-expression false-exp env)))
+              (let ((test-value (eval-expression test-exp env)))
+                (if (symbolic-value? test-value)
+                    (eopl:error 'eval-expression
+                                "No se permite usar una expresión simbólica en una condición: ~s"
+                                test-value)
+                    (if (true-value? test-value)
+                        (eval-expression true-exp env)
+                        (eval-expression false-exp env)))))
       (func-exp (nombre ids exps return-exp)
         (closure-with-body nombre ids exps return-exp env))
       (letrec-exp (proc-names idss bodies letrec-body)
@@ -418,18 +423,23 @@
              valor))
       (while-exp (condicion primera-decl resto-decls)
         (let loop ((cur-env env))
-          (if (true-value? (eval-expression condicion cur-env))
-              (let inner ((cur-decl  primera-decl)
-                          (inner-env cur-env)
-                          (restando  resto-decls))
-                (let* ((resultado  (eval-declaration cur-decl inner-env))
-                      (nuevo-env  (if (environment? resultado)
-                                      resultado
-                                      inner-env)))
-                  (if (null? restando)
-                      (loop nuevo-env)              ; ← usa el ambiente actualizado
-                      (inner (car restando) nuevo-env (cdr restando)))))
-              'null)))
+          (let ((condicion-value (eval-expression condicion cur-env)))
+            (if (symbolic-value? condicion-value)
+                (eopl:error 'eval-expression
+                            "No se permite usar una expresión simbólica en una condición: ~s"
+                            condicion-value)
+                (if (true-value? condicion-value)
+                    (let inner ((cur-decl  primera-decl)
+                                (inner-env cur-env)
+                                (restando  resto-decls))
+                      (let* ((resultado  (eval-declaration cur-decl inner-env))
+                            (nuevo-env  (if (environment? resultado)
+                                            resultado
+                                            inner-env)))
+                        (if (null? restando)
+                            (loop nuevo-env)              ; ← usa el ambiente actualizado
+                            (inner (car restando) nuevo-env (cdr restando)))))
+                    'null)))))
       (for-exp (id lista-exp primera-exp resto-exps)
         (let ((lista-val (eval-expression lista-exp env)))
           (if (and (vector? lista-val) (list? (vector-ref lista-val 0)))
@@ -533,9 +543,24 @@
       (igual-prim ()        (apply-primitive-relacion '== equal? (car args) (cadr args)))
       (diferente-prim ()    (apply-primitive-relacion '<> (lambda (a b) (not (equal? a b))) (car args) (cadr args)))
       ; booleanos
-      (and-prim () (and (true-value? (car args)) (true-value? (cadr args))))
-      (or-prim ()  (or  (true-value? (car args)) (true-value? (cadr args))))
-      (not-prim () (not (true-value? (car args))))
+      (and-prim ()
+        (if (contains-symbolic-value? args)
+        (eopl:error 'apply-primitive
+            "La primitiva booleana and no acepta expresiones simbólicas: ~s"
+            args)
+        (and (true-value? (car args)) (true-value? (cadr args)))))
+      (or-prim ()
+        (if (contains-symbolic-value? args)
+        (eopl:error 'apply-primitive
+            "La primitiva booleana or no acepta expresiones simbólicas: ~s"
+            args)
+        (or (true-value? (car args)) (true-value? (cadr args)))))
+      (not-prim ()
+        (if (contains-symbolic-value? args)
+        (eopl:error 'apply-primitive
+            "La primitiva booleana not no acepta expresiones simbólicas: ~s"
+            args)
+        (not (true-value? (car args)))))
       (modulo-prim ()      (symbolic-bin-op 'mod modulo (car args) (cadr args)))
       (division-prim ()    (symbolic-bin-op '/ / (car args) (cadr args)))
       (longitud-prim ()    (string-length (car args)))
@@ -631,11 +656,24 @@
 
 (define apply-primitive-relacion
   (lambda (op pred lhs rhs)
-    (if (and (number? lhs) (number? rhs))
-        (pred lhs rhs)
-        (eopl:error 'apply-primitive-relacion
-                    "La primitiva relacional ~s requiere operandos numéricos: ~s y ~s"
-                    op lhs rhs))))
+    (cond
+      ((or (symbolic-value? lhs) (symbolic-value? rhs))
+       (eopl:error 'apply-primitive-relacion
+                   "La primitiva relacional ~s no acepta expresiones simbólicas: ~s y ~s"
+                   op lhs rhs))
+      ((and (number? lhs) (number? rhs))
+       (pred lhs rhs))
+      (else
+       (eopl:error 'apply-primitive-relacion
+                   "La primitiva relacional ~s requiere operandos numéricos: ~s y ~s"
+                   op lhs rhs)))))
+
+(define contains-symbolic-value?
+  (lambda (values)
+    (cond
+      ((null? values) #f)
+      ((symbolic-value? (car values)) #t)
+      (else (contains-symbolic-value? (cdr values))))))
 
 ;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
 (define true-value?

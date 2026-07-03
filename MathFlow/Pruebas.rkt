@@ -197,18 +197,41 @@ end"))
 (eval-program (scan&parse "diccionario?(crear-diccionario())"))   ; #t
 
 ;--- Expresiones simbólicas ---
-; Este caso demuestra que MathFlow conserva expresiones cuando aparece un símbolo.
+; Variable tradicional: evalúa a un valor concreto.
+(eval-program (scan&parse "begin
+  var x = 5;
+  +(x, 2)
+end"))
+; 7
+
+; Símbolos: conservan la forma algebraica y no se reducen a un valor numérico.
 (eval-program
- (scan&parse "symbol x, y; 
-              var expr1 = +(x, 2); 
-              var expr2 = -(y, 5); 
-              var expr3 = *(expr1, expr2); 
-              var expr4 = *(+(x, 3), -(x, 2)); 
-              print(expr3); 
-              print(expr4)"))
+ (scan&parse "symbol x, y;
+              var expr1 = +(x, 2);
+              var expr2 = +(y, 5);
+              var expr3 = *(expr1, expr2);
+              var z = 9;
+              var w = +(z, 5);
+              var q = +(x, z);
+              print(x);
+              print(expr1);
+              print(expr2);
+              print(z);
+              print(w);
+              print(q);
+              null"))
 ; Resultado esperado:
-; ((x + 2) * (y - 5))
-; ((x + 3) * (x - 2))
+; x
+; (x + 2)
+; (y + 5)
+; 9
+; 14
+; (x + 9)
+
+; Expresiones simbólicas: solo participan en operaciones aritméticas.
+; Los operadores booleanos y relacionales generan error semántico.
+; (eval-program (scan&parse "symbol x; >(x, 3)"))
+; (eval-program (scan&parse "symbol x; and(x, true)"))
 
 ;--- Listas literales y diccionarios literales (sintaxis [ ] y { }) ---
 (eval-program (scan&parse "[1, 2, 3]"))
@@ -216,3 +239,15 @@ end"))
 
 (eval-program (scan&parse "{ nombre: \"Ana\", edad: 25 }"))
 ; hash con claves "nombre" y "edad"
+
+(eval-program
+ (scan&parse "symbol x;
+              var y = +(x, 5);
+              var z = 9;
+              var w = +(z, 5);
+              var q = +(x, z);
+              print(x);
+              print(y);
+              print(z);
+              print(w);
+              print(q)"))
