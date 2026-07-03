@@ -107,6 +107,9 @@
       ("print" "(" expression ")")
       print-exp)
     (expression
+      ("simplificar" "(" expression ")")
+      simplify-exp)
+    (expression
       (primitive "(" (separated-list expression ",") ")")
       primapp-exp)
     (expression
@@ -379,6 +382,8 @@
       (primapp-exp (prim rands)
                    (let ((args (eval-primapp-exp-rands rands env)))
                      (apply-primitive prim args)))
+      (simplify-exp (exp1)
+        (simplify-expression (eval-expression exp1 env)))
       (infix-primapp-exp (exp1 prim exp2)
         (apply-primitive prim
                          (list (eval-expression exp1 env)
@@ -667,6 +672,90 @@
        (eopl:error 'apply-primitive-relacion
                    "La primitiva relacional ~s requiere operandos numéricos: ~s y ~s"
                    op lhs rhs)))))
+
+(define simplify-expression
+  (lambda (value)
+    (cond
+      ((number? value) value)
+      ((symbol? value) value)
+      ((and (list? value) (= (length value) 2) (symbolic-operator? (car value)))
+       (simplify-unary-expression (car value)
+                                  (simplify-expression (cadr value))))
+      ((and (list? value) (= (length value) 3) (symbolic-operator? (cadr value)))
+       (simplify-binary-expression (cadr value)
+                                   (simplify-expression (car value))
+                                   (simplify-expression (caddr value))))
+      (else
+       (eopl:error 'simplify-expression
+                   "simplificar requiere una expresión simbólica, se obtuvo: ~s"
+                   value)))))
+
+(define simplify-unary-expression
+  (lambda (op value)
+    (cond
+      ((number? value)
+       (cond
+         ((eq? op (string->symbol "add1")) (+ value 1))
+         ((eq? op (string->symbol "sub1")) (- value 1))
+         (else (list op value))))
+      (else
+       (list op value)))))
+
+(define simplify-binary-expression
+  (lambda (op lhs rhs)
+    (cond
+      ((eq? op '+) (simplify-addition lhs rhs))
+      ((eq? op '-) (simplify-subtraction lhs rhs))
+      ((eq? op '*) (simplify-multiplication lhs rhs))
+      ((eq? op '/) (simplify-division lhs rhs))
+      (else (list lhs op rhs)))))
+
+(define infix-form?
+  (lambda (value op)
+    (and (list? value)
+         (= (length value) 3)
+         (eq? (cadr value) op))))
+
+(define simplify-addition
+  (lambda (lhs rhs)
+    (cond
+      ((and (number? lhs) (zero? lhs)) rhs)
+      ((and (number? rhs) (zero? rhs)) lhs)
+      ((and (number? lhs) (number? rhs)) (+ lhs rhs))
+      ((and (infix-form? lhs '+) (number? (caddr lhs)) (number? rhs))
+       (simplify-expression (list (car lhs) '+ (+ (caddr lhs) rhs))))
+      ((and (number? lhs) (infix-form? rhs '+) (number? (caddr rhs)))
+       (simplify-expression (list (+ lhs (caddr rhs)) '+ (car rhs))))
+      (else (list lhs '+ rhs)))))
+
+(define simplify-subtraction
+  (lambda (lhs rhs)
+    (cond
+      ((and (number? rhs) (zero? rhs)) lhs)
+      ((and (number? lhs) (number? rhs)) (- lhs rhs))
+      (else (list lhs '- rhs)))))
+
+(define simplify-multiplication
+  (lambda (lhs rhs)
+    (cond
+      ((and (number? lhs) (zero? lhs)) 0)
+      ((and (number? rhs) (zero? rhs)) 0)
+      ((and (number? lhs) (= lhs 1)) rhs)
+      ((and (number? rhs) (= rhs 1)) lhs)
+      ((and (number? lhs) (number? rhs)) (* lhs rhs))
+      ((and (infix-form? lhs '*) (number? (caddr lhs)) (number? rhs))
+       (simplify-expression (list (car lhs) '* (* (caddr lhs) rhs))))
+      ((and (number? lhs) (infix-form? rhs '*) (number? (caddr rhs)))
+       (simplify-expression (list (* lhs (caddr rhs)) '* (car rhs))))
+      (else (list lhs '* rhs)))))
+
+(define simplify-division
+  (lambda (lhs rhs)
+    (cond
+      ((and (number? lhs) (zero? lhs)) 0)
+      ((and (number? rhs) (= rhs 1)) lhs)
+      ((and (number? lhs) (number? rhs)) (/ lhs rhs))
+      (else (list lhs '/ rhs)))))
 
 (define contains-symbolic-value?
   (lambda (values)

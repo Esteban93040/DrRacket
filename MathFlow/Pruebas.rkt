@@ -240,14 +240,18 @@ end"))
 (eval-program (scan&parse "{ nombre: \"Ana\", edad: 25 }"))
 ; hash con claves "nombre" y "edad"
 
-(eval-program
- (scan&parse "symbol x;
-              var y = +(x, 5);
-              var z = 9;
-              var w = +(z, 5);
-              var q = +(x, z);
-              print(x);
-              print(y);
-              print(z);
-              print(w);
-              print(q)"))
+;--- simplificar ---
+(eval-program (scan&parse "symbol x; simplificar((x + 0))"))
+; x
+
+(eval-program (scan&parse "symbol x; simplificar(((x * 1) + 0))"))
+; x
+
+(eval-program (scan&parse "symbol x; var y = ((x + 2) + 3); simplificar(y)"))
+; (x + 5)
+
+(eval-program (scan&parse "symbol x; simplificar(((x * 0) + 10))"))
+; 10
+
+(eval-program (scan&parse "symbol x; simplificar(((x * 5) * 6))"))
+; (x * 30)
