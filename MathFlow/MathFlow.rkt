@@ -1071,6 +1071,7 @@
       ((zero? n) (cons val (cdr lst)))
       (else (cons (car lst) (reemplazar-en-lista (cdr lst) (- n 1) val))))))
 
+;; NOTA: SE TOMA DE REFERENCIA TODOS LOS ARCHIVOS DADOS PARA LA IMPLEMENTACIÓN DEL INTERPRETADOR DADOS COMO EJEMPLOS POR PARTE DEL PROFEROS EN EL ARCHIVO README SE DA MAS CONTEXTO DEL PROYECTO
 ;******************************************************************************************
 ;Pruebas
 
