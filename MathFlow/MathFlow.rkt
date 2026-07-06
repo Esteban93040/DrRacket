@@ -51,7 +51,7 @@
    (whitespace) skip)
   ;; comentarios
   (comment
-   ("%" (arbno (not #\newline))) skip)
+   ("//" (arbno (not #\newline))) skip)
   ;; identificadores
   (identifier
    (letter (arbno (or letter digit "?" "_"))) symbol)
@@ -183,8 +183,9 @@
     (primitive ("ref-diccionario") ref-diccionario-prim)
     (primitive ("set-diccionario") set-diccionario-prim)
     (primitive ("claves") claves-prim)
-    (primitive ("valores") valores-prim)
-    
+    (primitive ("obtener-valores") valores-prim)
+    (primitive ("simplificar") simplificar-prim)
+    (primitive ("evaluar") evaluar-prim)
     ))
 
 
@@ -485,6 +486,7 @@
 
 ; funciones auxiliares para aplicar eval-expression a cada elemento de una 
 ; lista de operandos (expresiones)
+; parametros por valor y referencia
 (define eval-rands
   (lambda (rands env)
     (map (lambda (x) (eval-rand x env)) rands)))
@@ -492,26 +494,16 @@
 (define eval-rand
   (lambda (rand env)
     (cases expression rand
-
       (var-or-app-exp (id args-lists)
         (if (null? args-lists)
-            (indirect-target
-             (let ((ref (apply-env-ref env id)))
-               (cases target (primitive-deref ref)
-                 (direct-target (expval constante? simbolo?)
-                   ref)
-                 (indirect-target (ref1)
-                   ref1))))
-            (direct-target
-             (eval-expression rand env)
-             #f
-             #f)))
-
+            (let* ((ref (apply-env-ref env id))
+                   (valor (apply-env env id)))
+              (if (or (list-value? valor) (hash? valor))
+                  (indirect-target ref)
+                  (direct-target valor #f #f)))
+            (direct-target (eval-expression rand env) #f #f)))
       (else
-       (direct-target
-        (eval-expression rand env)
-        #f
-        #f)))))
+       (direct-target (eval-expression rand env) #f #f)))))
 
 (define eval-primapp-exp-rands
   (lambda (rands env)
@@ -562,6 +554,15 @@
       (else
        (make-list-value args)))))
 
+; Función auxiliar que permite calcular enteros y flotantes
+(define modulo-mathflow
+  (lambda (a b)
+    (cond
+      ((and (integer? a) (integer? b))
+       (modulo a b))
+      ((and (number? a) (number? b))
+       (- a (* b (floor (/ a b))))))))
+
 ;apply-primitive: <primitiva> <list-of-expression> -> numero
 (define apply-primitive
   (lambda (prim args)
@@ -598,7 +599,7 @@
             "La primitiva booleana not no acepta expresiones simbólicas: ~s"
             args)
         (not (true-value? (car args)))))
-      (modulo-prim ()      (symbolic-bin-op 'mod modulo (car args) (cadr args)))
+      (modulo-prim ()      (symbolic-bin-op 'mod modulo-mathflow (car args) (cadr args)))
       (division-prim ()    (symbolic-bin-op '/ / (car args) (cadr args)))
       (longitud-prim ()    (string-length (car args)))
       (concatenar-prim ()  (string-append (car args) (cadr args)))
@@ -641,7 +642,15 @@
       (valores-prim ()
         (make-list-value
           (hash-values (car args))))
+      (simplificar-prim ()
+        (simplificar-exp (car args)))
+      (evaluar-prim ()
+        (evaluar-exp (car args) (cadr args)))
+      
     )))
+
+
+;; Funciones que permiten construir las expresiones simbolicas
 
 (define symbolic-operator?
   (lambda (op)
@@ -717,6 +726,69 @@
       ((symbolic-value? (car values)) #t)
       (else (contains-symbolic-value? (cdr values))))))
 
+;;Funciones que permiten simplificar y evaluar expresiones algebraicas segun los apartados del proyecto y pruebas realizadas
+
+(define simplificar-exp
+  (lambda (exp)
+    (cond
+      ((number? exp) exp)
+      ((symbol? exp) exp)
+      ((and (list? exp) (= (length exp) 2))
+       (list (car exp) (simplificar-exp (cadr exp))))
+      ((and (list? exp) (= (length exp) 3))
+       (let ((izq (simplificar-exp (car exp)))
+             (op  (cadr exp))
+             (der (simplificar-exp (caddr exp))))
+         (cond
+           ((and (eq? op '+) (equal? der 0)) izq)
+           ((and (eq? op '+) (equal? izq 0)) der)
+           ((and (eq? op '-) (equal? der 0)) izq)
+           ((and (eq? op '*) (equal? der 1)) izq)
+           ((and (eq? op '*) (equal? izq 1)) der)
+           ((and (eq? op '/) (equal? der 1)) izq)
+
+           ((and (eq? op '*) (or (equal? der 0) (equal? izq 0))) 0)
+           ((and (eq? op '/) (equal? izq 0)) 0)
+
+           ((and (eq? op '+) (list? izq) (= (length izq) 3) (eq? (cadr izq) '+) (number? (caddr izq)) (number? der))
+            (list (car izq) '+ (+ (caddr izq) der)))
+           ((and (eq? op '+) (number? izq) (list? der) (= (length der) 3) (eq? (cadr der) '+) (number? (caddr der)))
+            (list (+ izq (caddr der)) '+ (car der)))
+           ((and (eq? op '*) (list? izq) (= (length izq) 3) (eq? (cadr izq) '*) (number? (caddr izq)) (number? der))
+            (list (car izq) '* (* (caddr izq) der)))
+           ((and (eq? op '*) (number? izq) (list? der) (= (length der) 3) (eq? (cadr der) '*) (number? (caddr der)))
+            (list (* izq (caddr der)) '* (car der)))
+
+           (else (list izq op der)))))
+      (else exp))))
+
+
+(define evaluar-exp
+  (lambda (exp env)
+    (cond
+      ((number? exp) exp)
+      ((symbol? exp)
+       (let ((clave (symbol->string exp)))
+         (if (hash-has-key? env clave) (hash-ref env clave) exp)))
+      
+      ((and (list? exp) (= (length exp) 2))
+       (list (car exp) (evaluar-exp (cadr exp) env)))
+
+      ((and (list? exp) (= (length exp) 3))
+       (let ((izq (evaluar-exp (car exp) env))
+             (der (evaluar-exp (caddr exp) env))
+             (op (cadr exp)))
+         (if (and (number? izq) (number? der))
+             (cond 
+               ((eq? op '+) (+ izq der))
+               ((eq? op '-) (- izq der))
+               ((eq? op '*) (* izq der))
+               ((eq? op '/) (/ izq der))
+               ((eq? op 'mod) (modulo-mathflow izq der))
+               (else (list izq op der)))
+             (list izq op der))))
+      (else exp))))
+
 ;true-value?: determina si un valor dado corresponde a un valor booleano falso o verdadero
 (define true-value?
   (lambda (v)
@@ -742,7 +814,7 @@
   (closure-with-body
    (nombre symbol?)
    (ids (list-of symbol?))
-   (exps (list-of expression?))
+   (exps (list-of declaration?))
    (return-exp expression?)
    (env environment?)))
 
@@ -1017,7 +1089,7 @@ scan&parse
 (scan&parse "true")
 (scan&parse "false")
 (scan&parse "null")
-(scan&parse "add1(  +(5, %cccc
+(scan&parse "add1(  +(5, //cccc
 x)) ")
 (scan&parse "if -(x,4) then +(y,11) else *(y,10)")
 (scan&parse "begin
@@ -1027,6 +1099,43 @@ x)) ")
 end")
 (scan&parse "print(5)")
 (scan&parse "print(x)")
+(scan&parse "{nombre:\"Kevin\"}")
+(scan&parse "{x:1,y:2}")
+(scan&parse "if true then 1 else 2")
+(scan&parse "if >(5,2) then 10 else 20")
+(scan&parse
+"while true do
+5
+done")
+(scan&parse
+"for i in [1,2]
+do
+i
+done")
+(scan&parse
+"switch 2{
+case 1:10;
+case 2:20;
+default:30;
+}")
+(scan&parse
+"func sumar(a,b){
+return +(a,b)
+}")
+
+(scan&parse
+"sumar(3,4)")
+(scan&parse
+"func factorial(n){
+return if <=(n,1)
+then 1
+else *(n,factorial(-(n,1)))
+}")
+(scan&parse "+(x,5)")
+(scan&parse "*(+(x,2),-(y,5))")
+(scan&parse "simplificar(+(x,0))")
+(scan&parse "simplificar(*(*(x,5),6))")
+(scan&parse "evaluar(+(x,5),{x:10})")
 
 
 (define caso1 (primapp-exp (incr-prim) (list (lit-exp 5))))
